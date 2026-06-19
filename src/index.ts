@@ -1,0 +1,8 @@
+export type { MeshFrame, MeshTransport } from './mesh.js'
+export { SimMesh } from './sim-mesh.js'
+export type { SecureChannel } from './channel.js'
+export { createSimChannelPair } from './channel.js'
+export { meshChannel } from './mesh-channel.js'
+export { connectNoise, NoiseError } from './noise-channel.js'
+export type { KeyPair, ConnectNoiseOpts } from './noise-channel.js'
+export { withRecvTimeout } from './timeout-channel.js'
