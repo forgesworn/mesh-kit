@@ -231,6 +231,15 @@ class SymmetricState {
     cs2.initializeKey(k2)
     return [cs1, cs2]
   }
+
+  /**
+   * Return a copy of the current transcript hash `h`.
+   * Called immediately before/after `split()` — the value is identical on both
+   * sides once the handshake is complete.
+   */
+  getHandshakeHash(): Uint8Array {
+    return this.h.slice()
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +259,7 @@ async function runHandshake(
   underlying: SecureChannel,
   initiator: boolean,
   staticKP: KeyPair,
-): Promise<{ send: CipherState; recv: CipherState }> {
+): Promise<{ send: CipherState; recv: CipherState; binding: Uint8Array }> {
   const ss = new SymmetricState()
   const localStatic = staticKP
   const localEphemeral = dhKeyPair()
@@ -283,8 +292,9 @@ async function runHandshake(
     const payload3 = ss.encryptAndHash(new Uint8Array(0)) // empty payload → 16-byte tag
     underlying.send(concat(sEnc3, payload3))
 
+    const binding = ss.getHandshakeHash()
     const [cs1, cs2] = ss.split()
-    return { send: cs1, recv: cs2 }
+    return { send: cs1, recv: cs2, binding }
 
   } else {
     // ---- msg1: <- e ----
@@ -313,23 +323,43 @@ async function runHandshake(
     const payload3 = msg3.slice(off3)
     ss.decryptAndHash(payload3) // empty payload
 
+    const binding = ss.getHandshakeHash()
     const [cs1, cs2] = ss.split()
-    return { send: cs2, recv: cs1 }
+    return { send: cs2, recv: cs1, binding }
   }
 }
 
 // ---------------------------------------------------------------------------
-// NoiseChannel (transport phase) — implements SecureChannel
+// NoiseChannel (transport phase) — implements SecureChannel + exposes binding
 // ---------------------------------------------------------------------------
 
-class NoiseChannel implements SecureChannel {
+/**
+ * A `SecureChannel` returned by `connectNoise` after a successful Noise_XX handshake.
+ * Carries the post-handshake transcript hash as `binding` — a 32-byte `Uint8Array`
+ * identical on both sides of the connection. A relay or MITM running two independent
+ * handshakes will produce two distinct `binding` values, which lets application code
+ * detect impersonation.
+ *
+ * Extends `SecureChannel` non-breakingly: callers that treat the return value as a
+ * plain `SecureChannel` continue to work without change.
+ */
+export interface NoiseSecureChannel extends SecureChannel {
+  /** 32-byte SHA-256 handshake transcript hash. Identical on both peers after XX. */
+  readonly binding: Uint8Array
+}
+
+class NoiseChannelImpl implements NoiseSecureChannel {
   private closed = false
+  readonly binding: Uint8Array
 
   constructor(
     private readonly underlying: SecureChannel,
     private readonly sendCs: CipherState,
     private readonly recvCs: CipherState,
-  ) {}
+    binding: Uint8Array,
+  ) {
+    this.binding = binding
+  }
 
   send(frame: Uint8Array): void {
     if (this.closed) return
@@ -386,12 +416,13 @@ class NoiseChannel implements SecureChannel {
 export async function connectNoise(
   underlying: SecureChannel,
   opts: ConnectNoiseOpts,
-): Promise<SecureChannel> {
+): Promise<NoiseSecureChannel> {
   const staticKP = opts.staticKeyPair ?? dhKeyPair()
   let send: CipherState
   let recv: CipherState
+  let binding: Uint8Array
   try {
-    ;({ send, recv } = await runHandshake(underlying, opts.initiator, staticKP))
+    ;({ send, recv, binding } = await runHandshake(underlying, opts.initiator, staticKP))
   } catch (err) {
     // Normalise every handshake failure — DH errors (low-order keys, wrong-length
     // public bytes), malformed/truncated handshake frames, and decrypt failures —
@@ -405,5 +436,5 @@ export async function connectNoise(
     wrapped.cause = err
     throw wrapped
   }
-  return new NoiseChannel(underlying, send, recv)
+  return new NoiseChannelImpl(underlying, send, recv, binding)
 }

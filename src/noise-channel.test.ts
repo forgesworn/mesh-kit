@@ -163,4 +163,54 @@ describe('NoiseChannel', () => {
     pairI.close()
     await initiatorPromise.catch(() => {})
   })
+
+  // ---------------------------------------------------------------------------
+  // Channel binding (handshake hash)
+  // ---------------------------------------------------------------------------
+
+  it('both ends of a handshake expose an identical 32-byte binding (channel binding)', async () => {
+    const [t0, t1] = createSimChannelPair()
+    const [initiator, responder] = await Promise.all([
+      connectNoise(t0, { initiator: true }),
+      connectNoise(t1, { initiator: false }),
+    ])
+
+    // Both channels must carry a `binding` property.
+    expect('binding' in initiator).toBe(true)
+    expect('binding' in responder).toBe(true)
+
+    const a = (initiator as { binding: Uint8Array }).binding
+    const b = (responder as { binding: Uint8Array }).binding
+
+    // Must be exactly 32 bytes (SHA-256 output).
+    expect(a).toBeInstanceOf(Uint8Array)
+    expect(b).toBeInstanceOf(Uint8Array)
+    expect(a.length).toBe(32)
+    expect(b.length).toBe(32)
+
+    // Both peers must share the identical final transcript hash.
+    expect(a).toEqual(b)
+  })
+
+  it('two independent handshakes produce different bindings (transcript-specific, not a constant)', async () => {
+    const [t0a, t1a] = createSimChannelPair()
+    const [t0b, t1b] = createSimChannelPair()
+
+    const [[chA], [chB]] = await Promise.all([
+      Promise.all([
+        connectNoise(t0a, { initiator: true }),
+        connectNoise(t1a, { initiator: false }),
+      ]),
+      Promise.all([
+        connectNoise(t0b, { initiator: true }),
+        connectNoise(t1b, { initiator: false }),
+      ]),
+    ])
+
+    const bindingA = (chA as { binding: Uint8Array }).binding
+    const bindingB = (chB as { binding: Uint8Array }).binding
+
+    // Independent handshakes (fresh ephemeral key pairs) must differ.
+    expect(bindingA).not.toEqual(bindingB)
+  })
 })
