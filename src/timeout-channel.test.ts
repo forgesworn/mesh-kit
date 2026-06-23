@@ -75,4 +75,43 @@ describe('withRecvTimeout', () => {
     c.close()
     expect(s.closed()).toBe(true)
   })
+
+  it('does not drop a frame that arrives after a recv timeout (frame-safe)', async () => {
+    vi.useFakeTimers()
+    // A FIFO channel: a delivered frame resolves the OLDEST pending recv (like the
+    // real channel's waiter queue). A wrapper that abandons its recv on timeout
+    // would lose this frame and desync a Noise stream layered above.
+    const queue: Uint8Array[] = []
+    const waiters: Array<(f: Uint8Array) => void> = []
+    const channel: SecureChannel = {
+      send() {},
+      recv() {
+        return new Promise<Uint8Array>((res) => {
+          const f = queue.shift()
+          if (f) res(f)
+          else waiters.push(res)
+        })
+      },
+      close() {},
+    }
+    const deliver = (f: Uint8Array): void => {
+      const w = waiters.shift()
+      if (w) w(f)
+      else queue.push(f)
+    }
+
+    const c = withRecvTimeout(channel, 1000)
+    // Attach the rejection assertion BEFORE advancing the clock so the timeout
+    // rejection is never momentarily unhandled.
+    const first = c.recv()
+    const firstAssertion = expect(first).rejects.toThrow('recv timeout')
+    await vi.advanceTimersByTimeAsync(1000)
+    await firstAssertion
+
+    // The frame arrives now, on the still-pending underlying recv; the NEXT recv()
+    // must receive it rather than hang.
+    const second = c.recv()
+    deliver(new Uint8Array([7, 7, 7]))
+    await expect(second).resolves.toEqual(new Uint8Array([7, 7, 7]))
+  })
 })
