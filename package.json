@@ -48,6 +48,7 @@
     "vitest": "^2.0.0"
   },
   "files": [
-    "dist"
+    "dist",
+    "compatibility-vectors"
   ]
 }
