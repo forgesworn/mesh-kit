@@ -14,6 +14,25 @@ export type {
   MeshBufferState,
   RetainedMeshFrame,
 } from './mesh-buffer.js'
+export {
+  MeshBridgeWire,
+  SeenFrameIds,
+  connectMeshBridge,
+  withBridgedFrames,
+} from './mesh-bridge.js'
+export type {
+  BridgeEdgeOptions,
+  BridgedMeshFrame,
+  MeshBridgeOptions,
+  MeshBridgePolicy,
+  MeshBridgeStats,
+  MeshBridgeWireOptions,
+  MeshFrameCodec,
+  RunningBridgeEdge,
+  RunningMeshBridge,
+  SeenFrameIdsOptions,
+  WideBridgeLane,
+} from './mesh-bridge.js'
 export { SimMesh } from './sim-mesh.js'
 export type { SecureChannel } from './channel.js'
 export { createSimChannelPair } from './channel.js'

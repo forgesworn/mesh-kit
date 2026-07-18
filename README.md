@@ -23,6 +23,12 @@ Flock's original behaviour is frozen in
 frame's lifetime, the exact TTL boundary expires, and the oldest frame is
 evicted when capacity is exceeded.
 
+The bridge core similarly owns mechanics rather than product policy.
+`MeshBridgeWire` receives the consumer's reserved kind and byte codec;
+`connectMeshBridge` receives forwarding and throttle functions plus clocks and
+TTL values. Relay URLs, metrics, environment detection, room policy and lane
+lifecycle stay with the application.
+
 > Transport-agnostic encrypted offline-mesh substrate — a `MeshTransport` interface, a `Noise_XX` `SecureChannel`, and deterministic in-memory sims for tests.
 
 A small, dependency-light building block for **offline, peer-to-peer apps** (BLE mesh, LAN, sim). It carries opaque frames between nodes and lets any consumer run an authenticated, encrypted, in-order byte channel over them — without the transport knowing anything about the application.
@@ -36,6 +42,8 @@ Extracted from [`meatchat`](https://github.com/forgesworn/meatchat), where it is
 | `MeshTransport` | The node's view of the mesh: `broadcast` / `send(peer, …)` / `subscribe`. **Presence is implicit — receiving a frame proves range.** |
 | `MeshFrame` | `{ kind: string; payload: unknown; from?: string }`. `kind` is **opaque** to the transport (see below). |
 | Mesh-buffer functions | Bounded retention, TTL pruning, deduplication and manifest reconciliation for store-and-forward adapters. |
+| `MeshBridgeWire`, `SeenFrameIds` | Injected bridge envelope codec plus bounded first-sight deduplication. |
+| `connectMeshBridge`, `withBridgedFrames` | Generic two-lane gateway and single-lane edge shim; consumers inject kinds, clocks, throttles and forwarding policy. |
 | `SimMesh` | Deterministic in-memory mesh for tests — hands out per-node `MeshTransport` views. |
 | `SecureChannel` | Ordered, authenticated, encrypted byte duplex: `send` / `recv` / `close`. |
 | `createSimChannelPair` | Two in-memory `SecureChannel`s wired crosswise (the channel analogue of `SimMesh`). |
