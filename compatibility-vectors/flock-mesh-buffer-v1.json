@@ -1,0 +1,30 @@
+{
+  "schema": "forgesworn.mesh-buffer.compatibility.v1",
+  "source": {
+    "repository": "forgesworn/flock",
+    "commit": "2a5a0664f3648c5030b82dbeeead291a101066d5",
+    "path": "app/src/meshBuffer.ts"
+  },
+  "options": {
+    "maxEntries": 3,
+    "ttlSeconds": 900
+  },
+  "entries": [
+    { "id": "b", "frame": { "kind": "flock-wrap", "payload": "wrap-b" }, "storedAt": 1000 },
+    { "id": "a", "frame": { "kind": "flock-wrap", "payload": "wrap-a" }, "storedAt": 1001 },
+    { "id": "c", "frame": { "kind": "flock-wrap", "payload": "wrap-c" }, "storedAt": 1002 },
+    { "id": "d", "frame": { "kind": "flock-wrap", "payload": "wrap-d" }, "storedAt": 1003 }
+  ],
+  "expected": {
+    "defaults": { "maxEntries": 200, "ttlSeconds": 900 },
+    "manifestBeforeCapacityEviction": ["a", "b", "c"],
+    "manifestAfterCapacityEviction": ["a", "c", "d"],
+    "manifestAtTtlMinusOne": ["d"],
+    "manifestAtTtlBoundary": [],
+    "reconcile": {
+      "mine": ["a", "b", "c"],
+      "theirs": ["b", "c", "d"],
+      "result": { "toSend": ["a"], "toRequest": ["d"] }
+    }
+  }
+}

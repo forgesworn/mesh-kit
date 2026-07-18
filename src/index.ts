@@ -1,4 +1,19 @@
 export type { MeshFrame, MeshTransport } from './mesh.js'
+export {
+  MESH_BUFFER_DEFAULTS,
+  createMeshBuffer,
+  liveMeshFrames,
+  meshFramesFor,
+  meshManifest,
+  pruneMeshBuffer,
+  reconcileMeshManifests,
+  rememberMeshFrame,
+} from './mesh-buffer.js'
+export type {
+  MeshBufferOptions,
+  MeshBufferState,
+  RetainedMeshFrame,
+} from './mesh-buffer.js'
 export { SimMesh } from './sim-mesh.js'
 export type { SecureChannel } from './channel.js'
 export { createSimChannelPair } from './channel.js'

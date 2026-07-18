@@ -1,5 +1,28 @@
 # mesh-kit
 
+Transport-agnostic mesh primitives. Applications own discovery, routing policy,
+frame vocabulary and environment configuration.
+
+## Store-and-forward reliability
+
+`createMeshBuffer`, `rememberMeshFrame`, `meshManifest` and
+`reconcileMeshManifests` provide bounded, TTL-limited retention and manifest
+reconciliation for lossy transports. Frames remain opaque `MeshFrame` values;
+the consumer supplies the stable id used for deduplication.
+
+The buffer sits below `meshChannel`. A transport adapter should retain each
+accepted frame, exchange sorted manifests when a peer connects, request and
+send the missing ids, then deliver reconciled frames in manifest/request order.
+That store-and-forward step is what lets the channel's ordered byte stream be
+rebuilt when an underlying BLE or opportunistic link was unavailable at the
+original broadcast time. It does not choose hop limits, discovery identifiers,
+frame kinds or lane policy.
+
+Flock's original behaviour is frozen in
+`compatibility-vectors/flock-mesh-buffer-v1.json`: duplicates do not extend a
+frame's lifetime, the exact TTL boundary expires, and the oldest frame is
+evicted when capacity is exceeded.
+
 > Transport-agnostic encrypted offline-mesh substrate — a `MeshTransport` interface, a `Noise_XX` `SecureChannel`, and deterministic in-memory sims for tests.
 
 A small, dependency-light building block for **offline, peer-to-peer apps** (BLE mesh, LAN, sim). It carries opaque frames between nodes and lets any consumer run an authenticated, encrypted, in-order byte channel over them — without the transport knowing anything about the application.
@@ -12,6 +35,7 @@ Extracted from [`meatchat`](https://github.com/forgesworn/meatchat), where it is
 |--------|------|
 | `MeshTransport` | The node's view of the mesh: `broadcast` / `send(peer, …)` / `subscribe`. **Presence is implicit — receiving a frame proves range.** |
 | `MeshFrame` | `{ kind: string; payload: unknown; from?: string }`. `kind` is **opaque** to the transport (see below). |
+| Mesh-buffer functions | Bounded retention, TTL pruning, deduplication and manifest reconciliation for store-and-forward adapters. |
 | `SimMesh` | Deterministic in-memory mesh for tests — hands out per-node `MeshTransport` views. |
 | `SecureChannel` | Ordered, authenticated, encrypted byte duplex: `send` / `recv` / `close`. |
 | `createSimChannelPair` | Two in-memory `SecureChannel`s wired crosswise (the channel analogue of `SimMesh`). |
@@ -30,7 +54,7 @@ This is the seam that keeps the substrate use-case-agnostic.
 
 ## Reliability assumption
 
-`meshChannel` and the Noise channel assume the transport delivers frames to a named peer **reliably and in order** (as `SimMesh` does). The Noise spec (§5.1/§11.4) and any 2PC running over the channel require that. On a real lossy BLE mesh, a store-and-forward / relay layer beneath this adapter must provide the guarantee — that layer is out of scope here.
+`meshChannel` and the Noise channel assume the transport delivers frames to a named peer **reliably and in order** (as `SimMesh` does). The Noise spec (§5.1/§11.4) and any 2PC running over the channel require that. On a real lossy BLE mesh, use the mesh-buffer primitives in a store-and-forward adapter beneath `meshChannel`; that adapter remains responsible for peer handshakes and ordered delivery.
 
 ## Security posture
 
