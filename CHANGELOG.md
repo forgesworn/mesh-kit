@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 - 2026-07-20
+
+- Add class-aware per-frame expiry, priority and replace-by-key retention while preserving v1 defaults.
+- Add bounded paged reconciliation with original-author preservation and product-owned retention policy.
+- Add room-scoped inventory tokens plus a frozen v1 control-frame compatibility fixture.
+
 ## 0.1.1 - 2026-07-18
 
 - Extract mesh-kit from Meatchat — transport-agnostic encrypted offline-mesh substrate.

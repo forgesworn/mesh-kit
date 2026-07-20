@@ -146,4 +146,73 @@ describe('mesh buffer retention', () => {
     expect(meshManifest(alice, now, fixture.options)).toEqual(['a', 'b', 'c'])
     expect(meshManifest(bob, now, fixture.options)).toEqual(['a', 'b', 'c'])
   })
+
+  it('supports per-frame expiry without changing the v1 default TTL', () => {
+    let state = createMeshBuffer()
+    state = rememberMeshFrame(
+      state,
+      { id: 'presence', frame: { kind: 'presence', payload: 1 }, expiresAt: 105 },
+      100,
+      fixture.options,
+    )
+    state = rememberMeshFrame(
+      state,
+      { id: 'message', frame: { kind: 'message', payload: 2 }, expiresAt: 500 },
+      100,
+      fixture.options,
+    )
+
+    expect(meshManifest(state, 104, fixture.options)).toEqual(['message', 'presence'])
+    expect(meshManifest(state, 105, fixture.options)).toEqual(['message'])
+  })
+
+  it('coalesces replaceable frames by supersedesKey', () => {
+    let state = createMeshBuffer()
+    state = rememberMeshFrame(
+      state,
+      { id: 'old', frame: { kind: 'presence', payload: 1 }, supersedesKey: 'presence:alice' },
+      100,
+      fixture.options,
+    )
+    state = rememberMeshFrame(
+      state,
+      { id: 'other', frame: { kind: 'presence', payload: 2 }, supersedesKey: 'presence:bob' },
+      101,
+      fixture.options,
+    )
+    state = rememberMeshFrame(
+      state,
+      { id: 'new', frame: { kind: 'presence', payload: 3 }, supersedesKey: 'presence:alice' },
+      102,
+      fixture.options,
+    )
+
+    expect(meshManifest(state, 102, fixture.options)).toEqual(['new', 'other'])
+    expect(liveMeshFrames(state, 102, fixture.options).map(({ id }) => id)).toEqual(['other', 'new'])
+  })
+
+  it('evicts the oldest lowest-priority frame under capacity pressure', () => {
+    const options = { maxEntries: 2, ttlSeconds: 900 }
+    let state = createMeshBuffer()
+    state = rememberMeshFrame(
+      state,
+      { id: 'critical', frame: { kind: 'alert', payload: 1 }, priority: 10 },
+      100,
+      options,
+    )
+    state = rememberMeshFrame(
+      state,
+      { id: 'routine-1', frame: { kind: 'presence', payload: 2 }, priority: 0 },
+      101,
+      options,
+    )
+    state = rememberMeshFrame(
+      state,
+      { id: 'routine-2', frame: { kind: 'presence', payload: 3 }, priority: 0 },
+      102,
+      options,
+    )
+
+    expect(meshManifest(state, 102, options)).toEqual(['critical', 'routine-2'])
+  })
 })

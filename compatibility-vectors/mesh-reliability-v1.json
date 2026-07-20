@@ -1,0 +1,29 @@
+{
+  "schema": "forgesworn.mesh-reliability.compatibility.v1",
+  "kind": "mesh-kit/sync/v1",
+  "manifest": {
+    "v": 1,
+    "t": "manifest",
+    "r": "round-01",
+    "p": 0,
+    "n": 1,
+    "ids": ["room-scoped-token-a", "room-scoped-token-b"]
+  },
+  "offer": {
+    "v": 1,
+    "t": "offer",
+    "i": "room-scoped-token-a",
+    "f": {
+      "kind": "signed-message",
+      "payload": { "id": "message-01", "ciphertext": "opaque" },
+      "from": "original-author"
+    }
+  },
+  "limits": {
+    "tokenChars": 128,
+    "roundChars": 64,
+    "defaultManifestEntries": 200,
+    "defaultPageEntries": 24,
+    "defaultOffersPerRound": 64
+  }
+}

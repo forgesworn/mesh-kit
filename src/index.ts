@@ -12,6 +12,7 @@ export {
 export type {
   MeshBufferOptions,
   MeshBufferState,
+  MeshFrameRetention,
   RetainedMeshFrame,
 } from './mesh-buffer.js'
 export {
@@ -33,6 +34,15 @@ export type {
   SeenFrameIdsOptions,
   WideBridgeLane,
 } from './mesh-bridge.js'
+export { MESH_SYNC_KIND, meshScopedToken, withMeshReliability } from './mesh-reliability.js'
+export type {
+  MeshReliabilityContext,
+  MeshReliabilityOptions,
+  MeshReliabilityPolicy,
+  MeshReliabilityStats,
+  MeshRetentionDirective,
+  RunningMeshReliability,
+} from './mesh-reliability.js'
 export { SimMesh } from './sim-mesh.js'
 export type { SecureChannel } from './channel.js'
 export { createSimChannelPair } from './channel.js'

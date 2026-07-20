@@ -10,18 +10,30 @@ frame vocabulary and environment configuration.
 reconciliation for lossy transports. Frames remain opaque `MeshFrame` values;
 the consumer supplies the stable id used for deduplication.
 
-The buffer sits below `meshChannel`. A transport adapter should retain each
-accepted frame, exchange sorted manifests when a peer connects, request and
-send the missing ids, then deliver reconciled frames in manifest/request order.
-That store-and-forward step is what lets the channel's ordered byte stream be
-rebuilt when an underlying BLE or opportunistic link was unavailable at the
-original broadcast time. It does not choose hop limits, discovery identifiers,
-frame kinds or lane policy.
+`withMeshReliability` is the bounded adapter: it retains only frames admitted by
+the product policy, exchanges paged manifests with a known peer and offers the
+missing frames while preserving their original author. Per-frame expiry,
+priority and replace-by-key metadata let products distinguish ephemeral
+presence, durable encrypted work and safety alerts without building parallel
+buffers. `meshScopedToken` can hide a stable id behind a room-scoped SHA-256
+token; it prevents raw-id disclosure and cross-room linking, but is not an
+authenticity proof.
+
+Do not retain an ordered `channel`/Noise byte stream frame-by-frame unless the
+application also supplies sequence recovery and acknowledgements. Products
+should default handshakes and live channel frames to no retention, then put
+durable encrypted messages in an application envelope with its own id, expiry
+and acknowledgement semantics. The adapter does not choose hop limits,
+discovery identifiers, frame kinds or lane policy.
 
 Flock's original behaviour is frozen in
 `compatibility-vectors/flock-mesh-buffer-v1.json`: duplicates do not extend a
 frame's lifetime, the exact TTL boundary expires, and the oldest frame is
 evicted when capacity is exceeded.
+
+The additive reconciliation control shapes are frozen in
+`compatibility-vectors/mesh-reliability-v1.json`. They ride the reserved
+`mesh-kit/sync/v1` kind and never reach application subscribers.
 
 The bridge core similarly owns mechanics rather than product policy.
 `MeshBridgeWire` receives the consumer's reserved kind and byte codec;
@@ -42,6 +54,7 @@ Extracted from [`meatchat`](https://github.com/forgesworn/meatchat), where it is
 | `MeshTransport` | The node's view of the mesh: `broadcast` / `send(peer, …)` / `subscribe`. **Presence is implicit — receiving a frame proves range.** |
 | `MeshFrame` | `{ kind: string; payload: unknown; from?: string }`. `kind` is **opaque** to the transport (see below). |
 | Mesh-buffer functions | Bounded retention, TTL pruning, deduplication and manifest reconciliation for store-and-forward adapters. |
+| `withMeshReliability`, `meshScopedToken` | Class-aware volatile retention plus bounded, paged peer reconciliation with room-scoped inventory tokens. |
 | `MeshBridgeWire`, `SeenFrameIds` | Injected bridge envelope codec plus bounded first-sight deduplication. |
 | `connectMeshBridge`, `withBridgedFrames` | Generic two-lane gateway and single-lane edge shim; consumers inject kinds, clocks, throttles and forwarding policy. |
 | `SimMesh` | Deterministic in-memory mesh for tests — hands out per-node `MeshTransport` views. |
@@ -62,7 +75,7 @@ This is the seam that keeps the substrate use-case-agnostic.
 
 ## Reliability assumption
 
-`meshChannel` and the Noise channel assume the transport delivers frames to a named peer **reliably and in order** (as `SimMesh` does). The Noise spec (§5.1/§11.4) and any 2PC running over the channel require that. On a real lossy BLE mesh, use the mesh-buffer primitives in a store-and-forward adapter beneath `meshChannel`; that adapter remains responsible for peer handshakes and ordered delivery.
+`meshChannel` and the Noise channel assume the transport delivers frames to a named peer **reliably and in order** (as `SimMesh` does). The Noise spec (§5.1/§11.4) and any 2PC running over the channel require that. `withMeshReliability` improves eventual delivery for independently verifiable application frames; it does not turn an unordered/lossy byte stream into an ordered channel. A product that needs durable encrypted messaging must add message-level sequencing, acknowledgements and retry above the secure channel.
 
 ## Security posture
 

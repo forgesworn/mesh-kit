@@ -6,6 +6,29 @@ export interface RetainedMeshFrame {
   frame: MeshFrame
   /** Unix seconds when this node first retained the frame. */
   storedAt: number
+  /**
+   * Optional absolute expiry. When absent, the buffer-wide TTL applies.
+   * Product policy can therefore keep a DM longer than a presence frame
+   * without splitting reliability into parallel buffers.
+   */
+  expiresAt?: number
+  /** Higher values survive capacity pressure before lower-priority entries. */
+  priority?: number
+  /**
+   * Optional replace-by-key lane. Retaining a newer entry with the same key
+   * evicts the older one, which prevents presence/location histories from
+   * accumulating in a store-and-forward buffer.
+   */
+  supersedesKey?: string
+}
+
+/** Caller-owned metadata accepted when a frame first enters the buffer. */
+export interface MeshFrameRetention {
+  id: string
+  frame: MeshFrame
+  expiresAt?: number
+  priority?: number
+  supersedesKey?: string
 }
 
 /** Immutable store-and-forward state. Use the functions below rather than mutating it. */
@@ -43,7 +66,9 @@ export function pruneMeshBuffer(
 ): MeshBufferState {
   const order = state.order.filter((id) => {
     const entry = state.byId.get(id)
-    return entry !== undefined && now - entry.storedAt < options.ttlSeconds
+    if (entry === undefined) return false
+    const expiresAt = entry.expiresAt ?? entry.storedAt + options.ttlSeconds
+    return now < expiresAt
   })
 
   if (order.length === state.order.length) return state
@@ -60,7 +85,7 @@ export function pruneMeshBuffer(
  */
 export function rememberMeshFrame(
   state: MeshBufferState,
-  entry: { id: string; frame: MeshFrame },
+  entry: MeshFrameRetention,
   now: number,
   options: MeshBufferOptions = MESH_BUFFER_DEFAULTS,
 ): MeshBufferState {
@@ -68,11 +93,32 @@ export function rememberMeshFrame(
   if (pruned.byId.has(entry.id)) return pruned
 
   const byId = new Map(pruned.byId)
+  let order = [...pruned.order]
+
+  if (entry.supersedesKey !== undefined) {
+    for (const id of order) {
+      if (byId.get(id)?.supersedesKey !== entry.supersedesKey) continue
+      byId.delete(id)
+      order = order.filter((candidate) => candidate !== id)
+    }
+  }
+
   byId.set(entry.id, { ...entry, storedAt: now })
-  const order = [...pruned.order, entry.id]
+  order.push(entry.id)
 
   while (order.length > options.maxEntries) {
-    const dropped = order.shift() as string
+    // Preserve v1's oldest-first behavior when priorities are equal, while
+    // allowing product-critical work to survive a burst of replaceable frames.
+    let victimIndex = 0
+    let victimPriority = byId.get(order[0] as string)?.priority ?? 0
+    for (let index = 1; index < order.length; index += 1) {
+      const priority = byId.get(order[index] as string)?.priority ?? 0
+      if (priority < victimPriority) {
+        victimIndex = index
+        victimPriority = priority
+      }
+    }
+    const [dropped] = order.splice(victimIndex, 1)
     byId.delete(dropped)
   }
 
