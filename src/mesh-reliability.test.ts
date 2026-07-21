@@ -138,6 +138,26 @@ describe('withMeshReliability', () => {
     expect(bob.stats().duplicatesDropped).toBe(1)
   })
 
+  it('deduplicates a repeat delivery of a NON-retained (live-only) frame by id', () => {
+    const mesh = new SimMesh()
+    const alice = withMeshReliability({
+      selfId: 'alice', transport: mesh.node('alice'), policy, now: () => 5_000, roundId: rounder('a'),
+    })
+    const bob = withMeshReliability({
+      selfId: 'bob', transport: mesh.node('bob'), policy, now: () => 5_000, roundId: rounder('b'),
+    })
+    const received: MeshFrame[] = []
+    bob.subscribe((frame) => received.push(frame))
+
+    // The SAME live-only frame arrives twice (e.g. two relay paths on a flood mesh).
+    // It is not retained for reconciliation, but dedup is independent of retention.
+    alice.broadcast({ kind: 'live-only', payload: { id: 'dup' } })
+    alice.broadcast({ kind: 'live-only', payload: { id: 'dup' } })
+
+    expect(received).toHaveLength(1)
+    expect(bob.stats().duplicatesDropped).toBe(1)
+  })
+
   it('never store-forwards a frame rejected by product policy', () => {
     const mesh = new SimMesh()
     const alice = withMeshReliability({
