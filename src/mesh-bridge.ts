@@ -287,6 +287,10 @@ export function connectMeshBridge(options: MeshBridgeOptions): RunningMeshBridge
 
   const wideTap = wide.tap((frame, to, suppliedId) => {
     if (frame.from === undefined) return
+    // Ignore our own frames echoed back by the wide lane, mirroring the local-lane
+    // guard — some transports fan a publishAs/broadcast back through the sender's
+    // own tap(), which would otherwise re-deliver and re-forward it in a loop.
+    if (frame.from === selfId) return
     const id = suppliedId ?? wire.frameId(frame, frame.from, to)
     if (!seen.check(id)) {
       duplicatesDropped += 1

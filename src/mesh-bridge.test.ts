@@ -199,4 +199,27 @@ describe('deterministic two-lane bridge simulation', () => {
     expect(wide.published[0]?.from).toBe('bridge')
     expect(wide.broadcasts).toHaveLength(0)
   })
+
+  it('wideTap ignores our own frames echoed back by the wide lane (no loop)', () => {
+    const local = new TestLane()
+    const wide = new TestWideLane()
+    const delivered: MeshFrame[] = []
+    const bridge = connectMeshBridge({
+      selfId: 'bridge',
+      local,
+      wide,
+      wire: wire(),
+      seen: new SeenFrameIds({ capacity: 16, ttlMs: 20_000, now: () => 1_000 }),
+      policy: { forwardLocalBroadcast: () => false },
+      localPeerTtlMs: 60_000,
+      now: () => 1_000,
+    })
+    bridge.subscribe((f) => delivered.push(f))
+
+    // The wide lane echoes a frame WE published (from === selfId).
+    wide.injectTap({ kind: 'presence', payload: {}, from: 'bridge' }, undefined, 'own-frame')
+
+    expect(delivered).toHaveLength(0) // not re-delivered to us
+    expect(local.broadcasts).toHaveLength(0) // not re-forwarded onto the local lane
+  })
 })
