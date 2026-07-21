@@ -174,4 +174,29 @@ describe('deterministic two-lane bridge simulation', () => {
     expect(lane.sends).toHaveLength(2)
     expect(lane.broadcasts).toHaveLength(1)
   })
+
+  it('broadcast() crosses the wide lane via the tapped publishAs surface, not the untapped wide.broadcast', () => {
+    const local = new TestLane()
+    const wide = new TestWideLane()
+    const bridge = connectMeshBridge({
+      selfId: 'bridge',
+      local,
+      wide,
+      wire: wire(),
+      seen: new SeenFrameIds({ capacity: 16, ttlMs: 20_000, now: () => 1_000 }),
+      policy: { forwardLocalBroadcast: () => false },
+      localPeerTtlMs: 60_000,
+      now: () => 1_000,
+    })
+
+    bridge.broadcast({ kind: 'presence', payload: { nonce: 'n' } })
+
+    // Local peers get it directly.
+    expect(local.broadcasts).toHaveLength(1)
+    // Remote bridge nodes get it via publishAs — the surface the bridge taps —
+    // NOT via wide.broadcast, which no bridge node subscribes to.
+    expect(wide.published).toHaveLength(1)
+    expect(wide.published[0]?.from).toBe('bridge')
+    expect(wide.broadcasts).toHaveLength(0)
+  })
 })

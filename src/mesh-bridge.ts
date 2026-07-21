@@ -312,7 +312,11 @@ export function connectMeshBridge(options: MeshBridgeOptions): RunningMeshBridge
   return {
     broadcast: (frame) => {
       local.broadcast(frame)
-      wide.broadcast(frame)
+      // Reach remote bridge nodes via publishAs — the surface the bridge actually
+      // taps. A plain wide.broadcast() lands on a MeshTransport surface no bridge
+      // node subscribes to (it only wide.tap()s publishAs), so a broadcast never
+      // crossed the wide lane at all; send() already uses publishAs for this reason.
+      wide.publishAs(selfId, frame, { id: wire.freshId() })
     },
     send: (peer, frame) => {
       if (isLocalFresh(peer)) {

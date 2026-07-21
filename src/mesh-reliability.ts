@@ -1,4 +1,5 @@
 import type { MeshFrame, MeshTransport } from './mesh.js'
+import { SeenFrameIds } from './mesh-bridge.js'
 import { sha256 } from '@noble/hashes/sha2.js'
 import { bytesToHex } from '@noble/hashes/utils.js'
 import {
@@ -192,6 +193,15 @@ export function withMeshReliability(options: MeshReliabilityOptions): RunningMes
   const tokenFor = policy.inventoryToken ?? ((id: string) => id)
 
   let buffer = options.buffer ?? createMeshBuffer()
+  // Dedup is independent of retention: even a frame the policy declines to RETAIN
+  // (a live channel frame, a handshake) must not reach the consumer twice when it
+  // arrives via several relay paths on a flooding mesh. Retained frames dedup via
+  // the buffer's byId; this set covers the non-retained-but-identified ones.
+  const dedupSeen = new SeenFrameIds({
+    capacity: Math.max(64, bufferOptions.maxEntries),
+    ttlMs: bufferOptions.ttlSeconds * 1000,
+    now: () => now() * 1000,
+  })
   let closed = false
   const consumers = new Set<(frame: MeshFrame) => void>()
   const sentManifestAt = new Map<string, number>()
@@ -233,7 +243,9 @@ export function withMeshReliability(options: MeshReliabilityOptions): RunningMes
     if (!isToken(id)) return { retained: false, fresh: true }
     const directive = policy.retention(frame, context)
     if (directive === null || !Number.isFinite(directive.ttlSeconds) || directive.ttlSeconds <= 0) {
-      return { retained: false, fresh: true }
+      // Not retained for reconciliation, but still deduplicated by id — a repeat
+      // delivery of the same identified frame must not reach the consumer twice.
+      return { retained: false, fresh: dedupSeen.check(id) }
     }
     const current = liveBuffer()
     if (current.byId.has(id)) return { retained: true, fresh: false }
