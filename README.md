@@ -24,7 +24,7 @@ Extracted from a production Nostr application for reuse across ForgeSworn projec
 - **A generic two-lane bridge** — `connectMeshBridge` joins a local lane and a wide lane (e.g. BLE mesh + Nostr relay) while frame policy, metrics and lane lifecycle stay with the application.
 - **Deterministic tests** — `SimMesh` and `createSimChannelPair` give in-memory, synchronous stand-ins for the transport and the secure channel, so consumer test suites never need real BLE/network I/O.
 - **Production-hardened parsers** — every control-frame decoder (`mesh-reliability`'s manifest/offer parsing, `mesh-bridge`'s envelope `unwrap`) is total: malformed or hostile input is rejected rather than thrown.
-- **57 tests**, 94.6% statement coverage, with per-file coverage gates pinned to measured coverage on the channel/Noise-adjacent files.
+- **57 tests** across 8 files, with per-file coverage gates pinned to measured coverage on the channel/Noise-adjacent files.
 
 ## Install
 

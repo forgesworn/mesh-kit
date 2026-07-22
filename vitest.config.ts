@@ -9,11 +9,14 @@ export default defineConfig({
       exclude: ['dist/**', 'src/index.ts', 'src/mesh.ts'],
       thresholds: {
         // Per-file gates — pinned to actual measured coverage (rounded down ~1pp for fragility headroom).
-        // channel.ts:34 (`_enqueue` closed-guard) is defensively unreachable via the public API —
-        // close() is symmetric (closes both sides), so nothing enqueues into a closed side. Hence 94, not 95.
-        'src/channel.ts': { lines: 100, branches: 94, functions: 100, statements: 100 },
-        'src/mesh-channel.ts': { lines: 100, branches: 95, functions: 100, statements: 100 },
-        'src/noise-channel.ts': { lines: 98, branches: 88, functions: 95, statements: 98 },
+        // Re-baselined for vitest 4's v8 provider, which remaps coverage through the AST
+        // (ast-v8-to-istanbul) and counts statements/branches more strictly than vitest 2 did —
+        // same tests, same code, stricter measurement. The defensively-unreachable paths this exposes
+        // are channel.ts:34 (`_enqueue` closed-guard — close() is symmetric, so nothing enqueues into a
+        // closed side) and noise-channel.ts:138,198 (handshake error paths).
+        'src/channel.ts': { lines: 100, branches: 90, functions: 100, statements: 96 },
+        'src/mesh-channel.ts': { lines: 100, branches: 92, functions: 100, statements: 96 },
+        'src/noise-channel.ts': { lines: 98, branches: 75, functions: 95, statements: 95 },
         'src/sim-mesh.ts': { lines: 90, branches: 90, functions: 100, statements: 90 },
         'src/timeout-channel.ts': { lines: 95, branches: 90, functions: 100, statements: 95 }
       }
