@@ -57,6 +57,8 @@
   },
   "files": [
     "dist",
-    "compatibility-vectors"
+    "compatibility-vectors",
+    "LICENSE",
+    "llms.txt"
   ]
 }
