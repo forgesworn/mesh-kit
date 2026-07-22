@@ -1,0 +1,104 @@
+# mesh-kit
+
+> Transport-agnostic encrypted offline-mesh substrate for offline, peer-to-peer apps (BLE mesh, LAN, sim). Carries opaque frames between nodes and lets any consumer run an authenticated, encrypted, in-order byte channel over them — without the transport knowing anything about the application. Extracted from meatchat, where it is the shared floor under the Toll payment rail and the single-bit matcher.
+
+GitHub: https://github.com/forgesworn/mesh-kit
+
+ESM-only. Single export path — no subpaths: `mesh-kit`.
+
+## Install
+
+npm install mesh-kit
+
+## Exports
+
+### Transport interface & sim
+
+- `MeshTransport` — `{ broadcast(frame), send(peer, frame), subscribe(handler) → { close() } }`. Presence is implicit — receiving a frame proves range.
+- `MeshFrame` — `{ kind: string; payload: unknown; from?: string }`. `kind` is opaque to the transport; only `'channel'` (used by `meshChannel`) and `'mesh-kit/sync/v1'` (used by `withMeshReliability`) are reserved.
+- `SimMesh` — deterministic in-memory mesh for tests. `.node(id)` → `MeshTransport`
+
+### Store-and-forward reliability (mesh-buffer)
+
+- `MESH_BUFFER_DEFAULTS` — `{ maxEntries: 200, ttlSeconds: 900 }`
+- `createMeshBuffer()` → `MeshBufferState`
+- `rememberMeshFrame(state, entry, now, options?)` → `MeshBufferState` (dedupes by id; an unexpired duplicate is a no-op; `supersedesKey` evicts the older entry sharing that key)
+- `pruneMeshBuffer(state, now, options?)` → `MeshBufferState` (drops expired entries; the TTL boundary is exclusive)
+- `liveMeshFrames(state, now, options?)` → `RetainedMeshFrame[]` (oldest first)
+- `meshManifest(state, now, options?)` → `string[]` (sorted ids for reconciliation)
+- `reconcileMeshManifests(mine, theirs)` → `{ toSend: string[]; toRequest: string[] }`
+- `meshFramesFor(state, ids)` → `RetainedMeshFrame[]`
+
+### Policy-driven reconciliation adapter (mesh-reliability)
+
+- `withMeshReliability(options)` → `RunningMeshReliability` — a `MeshTransport` plus `sync(peer)`, `retained()`, `stats()`, `close()`. `options: { selfId, transport, policy: { frameId(frame), retention(frame, context), inventoryToken?(id) }, buffer?, bufferOptions?, maxManifestEntries?, manifestPageSize?, maxOffersPerRound?, syncIntervalSeconds?, assemblyTtlSeconds?, now?, roundId? }`
+- `meshScopedToken(scope, value)` → `string` — room-scoped SHA-256 token; hides a stable id in manifest control traffic (a privacy transform, not an authenticity proof)
+- `MESH_SYNC_KIND` — `'mesh-kit/sync/v1'`, the reserved control-frame kind; control traffic never reaches application subscribers
+
+### Bridge (mesh-bridge)
+
+- `MeshBridgeWire` — wire codec for one consumer-selected bridge kind. `.frameId(frame, from, to?)`, `.freshId()`, `.wrap(frame)`, `.unwrap(frame)` (total: malformed input returns `null`). Constructed with `{ kind, codec, randomBytes? }`.
+- `SeenFrameIds` — bounded first-sight TTL cache shared by bridge forwarding and delivery. `.check(id)` → `boolean`, `.size`. Constructed with `{ capacity, ttlMs, now? }`.
+- `connectMeshBridge(options)` → `RunningMeshBridge` — joins a local lane and a wide lane (e.g. BLE mesh + Nostr relay); `{ stats(), close() }`. `options: { selfId, local, wide, wire, seen, policy: { forwardLocalBroadcast(frame, from), throttleMs?(frame, from, to?) }, localPeerTtlMs, now? }`
+- `withBridgedFrames(transport, selfId, options)` → `RunningBridgeEdge` — single-lane edge shim for directed traffic to traverse any bridge. `options: { wire, seen, localPeerTtlMs, now? }`
+
+### Secure channel
+
+- `SecureChannel` — `{ send(frame: Uint8Array), recv(): Promise<Uint8Array>, close() }`
+- `createSimChannelPair()` → `[SecureChannel, SecureChannel]` — two in-memory channels wired crosswise
+- `meshChannel(transport, peerId)` → `SecureChannel` — point-to-point adapter over a `MeshTransport`; reserves `kind: 'channel'`
+- `withRecvTimeout(channel, ms)` → `SecureChannel` — each `recv()` rejects after `ms` if idle; a frame arriving after a timeout is never dropped, only handed to the next caller
+
+### Noise_XX handshake
+
+- `connectNoise(underlying, opts)` → `Promise<NoiseSecureChannel>` — runs `Noise_XX_25519_ChaChaPoly_SHA256` over `underlying`; `opts: { initiator: boolean; staticKeyPair?: KeyPair }`
+- `NoiseSecureChannel` — a `SecureChannel` plus `readonly binding: Uint8Array` (32-byte handshake transcript hash, identical on both peers; a relay/MITM running two independent handshakes produces two different bindings)
+- `NoiseError` — single error class for every Noise failure (malformed handshake, forged frame, decrypt failure); any decrypt failure closes the channel in both directions, never leaking partial plaintext
+- `KeyPair` — `{ secretKey: Uint8Array; publicKey: Uint8Array }`
+
+## Quick Examples
+
+```typescript
+import { SimMesh, meshChannel, connectNoise, withRecvTimeout } from 'mesh-kit'
+
+const mesh = new SimMesh()
+const alice = mesh.node('alice')
+const bob = mesh.node('bob')
+
+// A directed, in-order byte channel each way, then an encrypted one on top:
+const aliceChannel = withRecvTimeout(meshChannel(alice, 'bob'), 5000)
+const bobChannel = withRecvTimeout(meshChannel(bob, 'alice'), 5000)
+
+const [aliceSecure, bobSecure] = await Promise.all([
+  connectNoise(aliceChannel, { initiator: true }),
+  connectNoise(bobChannel, { initiator: false }),
+])
+
+aliceSecure.send(new TextEncoder().encode('hello'))
+await bobSecure.recv() // Uint8Array decoding to 'hello'
+```
+
+```typescript
+// Store-and-forward reconciliation between two peers' buffers
+import { createMeshBuffer, rememberMeshFrame, meshManifest, reconcileMeshManifests, meshFramesFor } from 'mesh-kit'
+
+const now = () => Math.floor(Date.now() / 1000)
+
+let mine = createMeshBuffer()
+mine = rememberMeshFrame(mine, { id: 'msg-1', frame: { kind: 'chat', payload: 'hi' } }, now())
+const theirs = createMeshBuffer() // peer has not seen msg-1 yet
+
+const { toSend } = reconcileMeshManifests(meshManifest(mine, now()), meshManifest(theirs, now()))
+// toSend = ['msg-1']
+const offers = meshFramesFor(mine, toSend) // frames to send the peer
+```
+
+## Alternatives
+
+The Noise_XX handshake is implemented directly over `@noble/curves` + `@noble/ciphers` + `@noble/hashes` rather than pulling in a dedicated Noise Protocol library:
+
+- **noise-protocol / noise-handshake / simple-handshake** (holepunchto family) — CommonJS only, no ESM exports; break under this repo's Node16 module resolution.
+- **@chainsafe/libp2p-noise** — ESM, but bundles the entire libp2p abstraction stack (13 dependencies, 1.2 MB unpacked) with its Noise state machine entangled in libp2p `Connection`/`PeerId` types. Extracting just the XX cryptography isn't cleaner than writing it from scratch over noble.
+- **noise-c.wasm** — WASM, complex build, far heavier than needed.
+
+Implementing Noise_XX over already-installed noble primitives is ~150 lines, spec-compliant (revision 34), and adds no new dependency to the tree.
