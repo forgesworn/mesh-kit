@@ -5,7 +5,7 @@ Instructions in this file apply to the entire repository.
 ## Project Summary
 
 - Transport-agnostic encrypted offline-mesh substrate: a `MeshTransport` interface, a hand-rolled `Noise_XX_25519_ChaChaPoly_SHA256` `SecureChannel`, store-and-forward reliability/reconciliation, a generic two-lane bridge, and deterministic in-memory sims for tests.
-- Extracted from [`meatchat`](https://github.com/forgesworn/meatchat), where it is the shared floor under the Toll payment rail and the single-bit matcher.
+- Extracted from a production Nostr application for reuse across ForgeSworn projects.
 - ESM-only package (`"type": "module"`), single export path (no subpaths).
 - Requires Node.js 18+ (CI currently builds and tests on Node 24).
 - Minimal dependencies: `@noble/curves`, `@noble/ciphers`, `@noble/hashes` — audited, zero-dependency, ESM-native, and already transitive deps of the crypto stack this repo shares with sibling kits.

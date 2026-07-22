@@ -14,7 +14,7 @@ A small, dependency-light building block for **offline, peer-to-peer apps** (BLE
 
 ESM-only, target ES2022, `Node16` module resolution. British English throughout.
 
-Extracted from [`meatchat`](https://github.com/forgesworn/meatchat), where it is the shared floor under the Toll payment rail and the single-bit matcher. See the meatchat **library-extraction map** for the rationale.
+Extracted from a production Nostr application for reuse across ForgeSworn projects.
 
 ## Why mesh-kit?
 

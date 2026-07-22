@@ -1,6 +1,6 @@
 # mesh-kit
 
-> Transport-agnostic encrypted offline-mesh substrate for offline, peer-to-peer apps (BLE mesh, LAN, sim). Carries opaque frames between nodes and lets any consumer run an authenticated, encrypted, in-order byte channel over them — without the transport knowing anything about the application. Extracted from meatchat, where it is the shared floor under the Toll payment rail and the single-bit matcher.
+> Transport-agnostic encrypted offline-mesh substrate for offline, peer-to-peer apps (BLE mesh, LAN, sim). Carries opaque frames between nodes and lets any consumer run an authenticated, encrypted, in-order byte channel over them — without the transport knowing anything about the application. Extracted from a production Nostr application for reuse across ForgeSworn projects.
 
 GitHub: https://github.com/forgesworn/mesh-kit
 
