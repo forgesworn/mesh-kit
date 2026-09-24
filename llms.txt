@@ -8,7 +8,9 @@ ESM-only. Single export path — no subpaths: `mesh-kit`.
 
 ## Install
 
-npm install mesh-kit
+Not on npm yet. Install from Git, pinned to a commit:
+
+npm install 'git+https://github.com/forgesworn/mesh-kit.git#<commit-sha>'
 
 ## Exports
 

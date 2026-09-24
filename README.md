@@ -28,8 +28,10 @@ Extracted from a production Nostr application for reuse across ForgeSworn projec
 
 ## Install
 
+Not on npm yet. Install from Git, pinned to a commit:
+
 ```bash
-npm install mesh-kit
+npm install 'git+https://github.com/forgesworn/mesh-kit.git#<commit-sha>'
 ```
 
 ## Quick Start
